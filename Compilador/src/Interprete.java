@@ -26,7 +26,7 @@ public class Interprete {
     private static void ejecutarArchivo(String path) throws IOException {
         byte[] bytes = Files.readAllBytes(Paths.get(path));
         ejecutar(new String(bytes, Charset.defaultCharset()));
-
+        
         // Se indica que existe un error
         if(existenErrores) System.exit(65);
     }
@@ -35,7 +35,7 @@ public class Interprete {
         InputStreamReader input = new InputStreamReader(System.in);
         BufferedReader reader = new BufferedReader(input);
 
-        for(;;){
+        for(;;) {
             System.out.print(">>> ");
             String linea = reader.readLine();
             if(linea == null) break; // Presionar Ctrl + D
