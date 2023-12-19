@@ -45,25 +45,17 @@ public class Interprete {
     }
 
     private static void ejecutar(String source) {
-        try{
-            Scanner scanner = new Scanner(source);
-            List<Token> tokens = scanner.scan();
+        AnalizadorLexico analizadorLexico = new AnalizadorLexico(source);
+        List<Token> tokens = analizadorLexico.scanTokens();
 
-            for(Token token : tokens){
-                System.out.println(token);
-            }
-        }
-        catch (Exception ex){
-            ex.printStackTrace();
-        }
+        System.out.println(tokens);
 
+        AnalizadorSintactico analizadorSintactico = new AnalizadorSintactico(tokens);
+        analizadorSintactico.analizadorSintactico();
     }
 
-    /*
-    El método error se puede usar desde las distintas clases
-    para reportar los errores:
-    Interprete.error(....);
-     */
+
+
     static void error(int linea, String mensaje){
         reportar(linea, "", mensaje);
     }

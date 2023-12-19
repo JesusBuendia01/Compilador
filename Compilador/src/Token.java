@@ -1,22 +1,28 @@
+
+
 public class Token {
+    
+    public final TipoToken tipoToken;
+    public final String lexema;
+    public final Object literal;
+    public final int linea;
 
-    final TipoToken tipo;
-    final String lexema;
-    final Object literal;
-
-    public Token(TipoToken tipo, String lexema) {
-        this.tipo = tipo;
-        this.lexema = lexema;
-        this.literal = null;
+    public Token(TipoToken tipoToken,String lexema,int linea){
+        this.tipoToken=tipoToken;
+        this.lexema=lexema;
+        this.literal=null;
+        this.linea=linea;
+    }
+    
+    public Token(TipoToken tipoToken, String lexema, Object literal, int linea){
+        this.tipoToken=tipoToken;
+        this.lexema=lexema;
+        this.literal=literal;
+        this.linea=linea;
     }
 
-    public Token(TipoToken tipo, String lexema, Object literal) {
-        this.tipo = tipo;
-        this.lexema = lexema;
-        this.literal = literal;
+    public String toString(){
+        return tipoToken+" "+lexema+" "+" linea: "+(linea)+" "+(literal==null?" " : literal.toString());
     }
 
-    public String toString() {
-        return "<" + tipo + " " + lexema + " " + literal + ">";
-    }
 }

@@ -1,20 +1,58 @@
+
+
+
 public enum TipoToken {
-    // Tokens de un sólo caracter
-    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
-    COMMA, DOT, MINUS, PLUS, SEMICOLON, SLASH, STAR,
 
-    // Tokens de uno o dos caracteres
-    BANG, BANG_EQUAL,
-    EQUAL, EQUAL_EQUAL,
-    GREATER, GREATER_EQUAL,
-    LESS, LESS_EQUAL,
+    //Palabras reservadas
+    AND, //Y
+    CLASS, //CLASE
+    ELSE, //ADEMAS
+    FALSE, //FALSO
+    FOR, //PARA
+    FUN, //FUNCION
+    IF, //SI
+    NULL, //NULO
+    OR, //O
+    PRINT, //IMPRIMIR
+    RETURN, //RETORNAR
+    SUPER, //SUPER
+    THIS,  //ESTE
+    TRUE, //VERDADERO
+    VAR, //VARIABLE
+    WHILE, //MIENTRAS
 
-    // Literales
-    IDENTIFIER, STRING, NUMBER,
+    //Tipos de tokens adicionales
+    IDENTIFIER, //IDENTIFICADOR
+    STRING, //CADENA
+    NUMBER, //NUMERO
 
-    // Palabras clave
-    AND, ELSE, FALSE, FUN, FOR, IF, NULL, OR,
-    PRINT, RETURN, TRUE, VAR, WHILE,
+    //Simbolos del lenguaje
 
-    EOF
+    LEFT_PAREN, //PARENTESIS IZQUIERDO
+    RIGHT_PAREN, //PARENTESIS DERECHO
+    LEFT_BRACE,  //LLAVE IZQUIERDA
+    RIGHT_BRACE, //LLAVE DERECHA
+    COMMA, //COMA
+    DOT, //PUNTO
+    MINUS, //MENOS
+    PLUS, //MAS
+    SEMICOLON, //PUNTO Y COMA
+    SLASH, //DIAGONAL
+    STAR, //ASTERISCO
+
+
+    //Operadores de comparacion
+    BANG,   //EXCLAMACION
+    BANG_EQUAL, //EXCLAMACION IGUAL
+    EQUAL,  //IGUAL
+    EQUAL_EQUAL,    //IGUAL IGUAL
+    GREATER,    //MAYOR
+    GREATER_EQUAL,  //MAYOR IGUAL
+    LESS,  //MENOR
+    LESS_EQUAL, //MENOR IGUAL
+
+    //Final de cadena
+    EOF     //FIN DE CADENA
+
+
 }
