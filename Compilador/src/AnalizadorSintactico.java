@@ -1,7 +1,14 @@
 
-import java.util.List;
+import java.util.*;
 
 public class AnalizadorSintactico {
+
+    private List<Statement> threeList;
+    private Statement three = null;
+    private Queue<Token> tokensToGroup;
+    private boolean newAssignment = false;
+    private boolean newFunction = false;
+    private int blockRecursiveId = 0;
 
     private int i = 0;
     private boolean hayErrores = false;
@@ -10,6 +17,8 @@ public class AnalizadorSintactico {
 
     public AnalizadorSintactico(List<Token> tokens) {
         this.tokens = tokens;
+        this.threeList = new ArrayList<Statement>();
+        this.tokensToGroup = new LinkedList<>();
     }
 
     public void analizadorSintactico() {
@@ -144,24 +153,42 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.VAR) {
-            coincidir(TipoToken.VAR);
-            coincidir(TipoToken.IDENTIFIER);
+            if (!coincidir(TipoToken.VAR)) {
+                this.tokensToGroup.clear();
+                return;
+            }
+
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.IDENTIFIER)) {
+                temp = null;
+                this.tokensToGroup.clear();
+                return;
+            };
+
+            this.tokensToGroup.add(temp);
+
             VAR_INIT();
-            coincidir(TipoToken.SEMICOLON);
+
+            if (!coincidir(TipoToken.SEMICOLON)) {
+                this.tokensToGroup.clear();
+                return;
+            }
+
+            addNewVariableStatementToThree();
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada var");
         }
     }
 
-    private void VAR_INIT() {
+    private Token VAR_INIT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.EQUAL) {
-            coincidir(TipoToken.EQUAL);
+            if (!coincidir(TipoToken.EQUAL)) this.tokensToGroup.clear();
             EXPRESSION();
         }
+        return null;
     }
 
     private void STATEMENT() {
@@ -217,7 +244,13 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
             EXPRESSION();
-            coincidir(TipoToken.SEMICOLON);
+            if (!coincidir(TipoToken.SEMICOLON)) return;
+            if (this.newAssignment) {
+                System.out.println("ALAVRGAAAAAAAAAAAAAAA ACABO EL PDO DE LA EXPRESION SI ES UNA ASIGNACION!    247");
+                System.out.println(this.tokensToGroup);
+                this.addNewAssignmentToThree();
+                this.newAssignment = false;
+            }
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
@@ -416,9 +449,9 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.LEFT_BRACE) {
-            coincidir(TipoToken.LEFT_BRACE);
+            if (!coincidir(TipoToken.LEFT_BRACE)) this.tokensToGroup.clear();
             BLOCK_DECL();
-            coincidir(TipoToken.RIGHT_BRACE);
+            if(!coincidir(TipoToken.RIGHT_BRACE)) this.tokensToGroup.clear();   
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba: { ");
@@ -508,7 +541,7 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.EQUAL) {
-            coincidir(TipoToken.EQUAL);
+            if (coincidir(TipoToken.EQUAL)) this.newAssignment = true;
             EXPRESSION();
         }
     }
@@ -694,11 +727,13 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.MINUS) {
-            coincidir(TipoToken.MINUS);
+            Token temp = preanalisis;
+            if (coincidir(TipoToken.MINUS)) this.tokensToGroup.add(temp);
             FACTOR();
             TERM_2();
         } else if (preanalisis.tipoToken == TipoToken.PLUS) {
-            coincidir(TipoToken.PLUS);
+            Token temp = preanalisis;
+            if (coincidir(TipoToken.PLUS)) this.tokensToGroup.add(temp);
             FACTOR();
             TERM_2();
         }
@@ -733,7 +768,12 @@ public class AnalizadorSintactico {
             UNARY();
             FACTOR_2();
         } else if (preanalisis.tipoToken == TipoToken.STAR) {
-            coincidir(TipoToken.STAR);
+            Token temp = preanalisis;
+            if (coincidir(TipoToken.STAR)) {
+                this.tokensToGroup.add(temp);
+            } else {
+                this.tokensToGroup.clear();
+            }
             UNARY();
             FACTOR_2();
 
@@ -748,17 +788,14 @@ public class AnalizadorSintactico {
             coincidir(TipoToken.BANG);
             UNARY();
         } else if (preanalisis.tipoToken == TipoToken.MINUS) {
-            coincidir(TipoToken.LESS);
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.MINUS)) {
+                this.tokensToGroup.clear();
+            } else {
+                this.tokensToGroup.add(temp);
+            }
             UNARY();
-        } else if (preanalisis.tipoToken == TipoToken.TRUE
-                || preanalisis.tipoToken == TipoToken.FALSE
-                || preanalisis.tipoToken == TipoToken.NULL
-                || preanalisis.tipoToken == TipoToken.THIS
-                || preanalisis.tipoToken == TipoToken.NUMBER
-                || preanalisis.tipoToken == TipoToken.STRING
-                || preanalisis.tipoToken == TipoToken.IDENTIFIER
-                || preanalisis.tipoToken == TipoToken.LEFT_PAREN
-                || preanalisis.tipoToken == TipoToken.SUPER) {
+        } else if (isPrimary(preanalisis.tipoToken)) {
             CALL();
         } else {
             hayErrores = true;
@@ -772,15 +809,7 @@ public class AnalizadorSintactico {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
             return;
-        if (preanalisis.tipoToken == TipoToken.TRUE
-                || preanalisis.tipoToken == TipoToken.FALSE
-                || preanalisis.tipoToken == TipoToken.NULL
-                || preanalisis.tipoToken == TipoToken.THIS
-                || preanalisis.tipoToken == TipoToken.NUMBER
-                || preanalisis.tipoToken == TipoToken.STRING
-                || preanalisis.tipoToken == TipoToken.IDENTIFIER
-                || preanalisis.tipoToken == TipoToken.LEFT_PAREN
-                || preanalisis.tipoToken == TipoToken.SUPER) {
+        if (isPrimary(preanalisis.tipoToken)) {
             PRIMARY();
             CALL_2();
         } else {
@@ -796,6 +825,7 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.LEFT_PAREN) {
+            System.out.println("LEYENDO FUNCIOOOOOOOOON O CLASEEEEEEEEEEEEEEEEEEEEEEEEE 826");
             coincidir(TipoToken.LEFT_PAREN);
             ARGUMENTS_OPC();
             coincidir(TipoToken.RIGHT_PAREN);
@@ -820,15 +850,40 @@ public class AnalizadorSintactico {
         } else if (preanalisis.tipoToken == TipoToken.THIS) {
             coincidir(TipoToken.THIS);
         } else if (preanalisis.tipoToken == TipoToken.NUMBER) {
-            coincidir(TipoToken.NUMBER);
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.NUMBER)) {
+                this.tokensToGroup.clear();
+                return;
+            }
+            this.tokensToGroup.add(temp);
         } else if (preanalisis.tipoToken == TipoToken.STRING) {
-            coincidir(TipoToken.STRING);
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.STRING)) {
+                this.tokensToGroup.clear();
+                return;
+            }
+            this.tokensToGroup.add(temp);
         } else if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            coincidir(TipoToken.IDENTIFIER);
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.IDENTIFIER)) {
+                this.tokensToGroup.clear();
+                return;
+            }
+            this.tokensToGroup.add(temp);
         } else if (preanalisis.tipoToken == TipoToken.LEFT_PAREN) {
-            coincidir(TipoToken.LEFT_PAREN);
+            Token temp = preanalisis;
+            if (coincidir(TipoToken.LEFT_PAREN)) {
+                this.tokensToGroup.add(temp);
+            } else {
+                this.tokensToGroup.clear();
+            }
             EXPRESSION();
-            coincidir(TipoToken.RIGHT_PAREN);
+            temp = preanalisis;
+            if (coincidir(TipoToken.RIGHT_PAREN)) {
+                this.tokensToGroup.add(temp);
+            } else {
+                this.tokensToGroup.clear();
+            }
         } else if (preanalisis.tipoToken == TipoToken.SUPER) {
             coincidir(TipoToken.SUPER);
             coincidir(TipoToken.DOT);
@@ -846,11 +901,40 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            coincidir(TipoToken.IDENTIFIER);
-            coincidir(TipoToken.LEFT_PAREN);
+            Token temp = preanalisis;
+            this.blockRecursiveId += 1;
+
+            if (coincidir(TipoToken.IDENTIFIER)) {
+                this.tokensToGroup.add(temp);
+            } else {
+                this.tokensToGroup.clear();
+            }
+
+            temp = preanalisis;
+
+            if (coincidir(TipoToken.LEFT_PAREN)) {
+                this.tokensToGroup.add(temp);
+            } else {
+                this.tokensToGroup.clear();
+            }
+
             PARAMETERS_OPC();
-            coincidir(TipoToken.RIGHT_PAREN);
+            temp = preanalisis;
+
+            if (coincidir(TipoToken.RIGHT_PAREN)) {
+                this.tokensToGroup.add(temp);
+            } else {
+                this.tokensToGroup.clear();
+            }
+
             BLOC();
+
+            if (this.blockRecursiveId == 1) {
+                this.addNewFunctionToThree();
+            }
+
+            this.blockRecursiveId -= 1;
+            
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba : id");
@@ -949,23 +1033,73 @@ public class AnalizadorSintactico {
         if (hayErrores)
             return;
         if (preanalisis.tipoToken == TipoToken.COMMA) {
-            coincidir(TipoToken.COMMA);
+            Token temp = preanalisis;
+            if (coincidir(TipoToken.COMMA)) this.tokensToGroup.add(preanalisis);
+            else this.tokensToGroup.clear();
             EXPRESSION();
             ARGUMENTS_2();
         }
     }
 
-    private void coincidir(TipoToken t) {
+    private boolean coincidir(TipoToken t) {
         if (hayErrores)
-            return;
-        System.out.println(preanalisis.tipoToken);
+            return false;
+        System.out.println(preanalisis.tipoToken + " - " + preanalisis.lexema);
         if (preanalisis.tipoToken == t) {
             i++;
             preanalisis = tokens.get(i);
+            return true;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: " + preanalisis.linea + " se esperaba un: " + t);
         }
+        return false;
+    }
+    
+    private boolean isPrimary(TipoToken token) {
+        return     token == TipoToken.TRUE
+                || token == TipoToken.FALSE
+                || token == TipoToken.NULL
+                || token == TipoToken.THIS
+                || token == TipoToken.NUMBER
+                || token == TipoToken.STRING
+                || token == TipoToken.IDENTIFIER
+                || token == TipoToken.LEFT_PAREN
+                || token == TipoToken.SUPER;
     }
 
+    private void addNewVariableStatementToThree() {
+        Token variableName = this.tokensToGroup.remove();
+        Expression initExpression = null;
+        if (this.tokensToGroup.peek() != null) {
+            Token unary = null;
+            if (this.tokensToGroup.peek().tipoToken == TipoToken.MINUS) {
+                unary = this.tokensToGroup.remove();
+            }
+
+            initExpression = new ExprLiteral(this.tokensToGroup.remove().literal);
+
+            if (unary != null) {
+                initExpression = new ExprUnary(unary, initExpression);
+                initExpression = new ExprAssign(unary, initExpression);
+            } else {
+            }
+
+            initExpression = new ExprGrouping(initExpression);
+        }
+
+        StmtVar statementVar = new StmtVar(variableName, initExpression);
+        this.threeList.add(statementVar);
+        this.tokensToGroup.clear();
+    }
+
+    private void addNewAssignmentToThree() {
+        Token variableName = this.tokensToGroup.remove();
+
+    }
+
+    private void addNewFunctionToThree() {
+        System.out.println(this.tokensToGroup);
+        this.tokensToGroup.clear();
+    }
 }

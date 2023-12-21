@@ -48,6 +48,7 @@ public class Interprete {
         AnalizadorLexico analizadorLexico = new AnalizadorLexico(source);
         List<Token> tokens = analizadorLexico.scanTokens();
 
+        System.out.println("\nTOKENS:");
         System.out.println(tokens);
 
         AnalizadorSintactico analizadorSintactico = new AnalizadorSintactico(tokens);
