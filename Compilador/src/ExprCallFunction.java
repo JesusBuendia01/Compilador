@@ -13,6 +13,6 @@ public class ExprCallFunction extends Expression{
 
     @Override
     public String toString() {
-        return "Expresion: ExprCallFunction <---------------------------";
+        return "Expresion: ExprCallFunction ";
     }
 }

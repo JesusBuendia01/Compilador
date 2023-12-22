@@ -12,7 +12,7 @@ public class ExprBinary extends Expression{
 
     @Override
     public String toString() {
-        return "Expresion: ExprBinary <---------------------------";
+        return "Expresion: ExprBinary";
     }
 
 }

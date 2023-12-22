@@ -10,6 +10,6 @@ public class ExprAssign extends Expression{
 
     @Override
     public String toString() {
-        return "Expresion: ExprAssign <---------------------------";
+        return "Expresion: ExprAssign";
     }
 }

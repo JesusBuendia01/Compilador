@@ -9,7 +9,7 @@ public class ExprUnary extends Expression{
 
     @Override
     public String toString() {
-        return "Expresion: ExprUnary <---------------------------";
+        return "Expresion: ExprUnary";
     }
 
     /*

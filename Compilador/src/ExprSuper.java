@@ -9,6 +9,6 @@ public class ExprSuper extends Expression {
 
     @Override
     public String toString() {
-        return "Expresion: ExprSuper <---------------------------";
+        return "Expresion: ExprSuper";
     }
 }

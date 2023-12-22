@@ -12,7 +12,7 @@ class ExprVariable extends Expression {
 
     @Override
     public String toString() {
-        return "Expresion: ExprVariable <---------------------------";
+        return "Expresion: ExprVariable";
     }
 }
 

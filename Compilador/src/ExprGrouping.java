@@ -7,6 +7,6 @@ public class ExprGrouping extends Expression {
 
     @Override
     public String toString() {
-        return "Expresion: ExprGrouping <---------------------------";
+        return "Expresion: ExprGrouping ";
     }
 }

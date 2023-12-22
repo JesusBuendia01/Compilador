@@ -7,6 +7,6 @@ class ExprLiteral extends Expression {
 
     @Override
     public String toString() {
-        return "Expresion: ExprLiteral <---------------------------";
+        return "Expresion: ExprLiteral ";
     }
 }

@@ -9,6 +9,6 @@ public class ExprGet extends Expression{
 
     @Override
     public String toString() {
-        return "Expresion: ExprGet <---------------------------";
+        return "Expresion: ExprGet ";
     }
 }

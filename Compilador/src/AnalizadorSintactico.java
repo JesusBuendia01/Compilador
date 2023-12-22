@@ -24,7 +24,8 @@ public class AnalizadorSintactico {
 
         PROGRAM();
         // lista de statements
-        
+        System.out.println("\n AST:");
+        System.out.println(this.threeList);
         if (!hayErrores && !(preanalisis.tipoToken == TipoToken.EOF)) {
             System.out.println(
                     "Error en la linea :" + preanalisis.linea + ". No se esperaba el token " + preanalisis.tipoToken);
@@ -248,9 +249,22 @@ public class AnalizadorSintactico {
             if (!coincidir(TipoToken.FOR)) return null;
             if (!coincidir(TipoToken.LEFT_PAREN)) return null;
 
-            Statement stmt1 = FOR_STMT_1();
-            Expression stmt2 = FOR_STMT_2();
-            Expression stmt3 = FOR_STMT_3();
+            
+            Statement stmt1;
+            Expression stmt2;
+            Expression stmt3;
+
+            if (!this.insideBlockDeclaration) {
+                this.insideBlockDeclaration = true;
+                stmt1 = FOR_STMT_1();
+                stmt2 = FOR_STMT_2();
+                stmt3 = FOR_STMT_3();
+                this.insideBlockDeclaration = false;
+            } else {
+                stmt1 = FOR_STMT_1();
+                stmt2 = FOR_STMT_2();
+                stmt3 = FOR_STMT_3();
+            }
 
             if (!coincidir(TipoToken.RIGHT_PAREN)) return null;
 
@@ -311,12 +325,13 @@ public class AnalizadorSintactico {
             return statementExpression;
         } else if (preanalisis.tipoToken == TipoToken.SEMICOLON) {
             if (!coincidir(TipoToken.SEMICOLON)) return null;
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea
-                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
-                    "var, !, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, ;");
         }
+        // } else {
+        //     hayErrores = true;
+        //     System.out.println("Error en la linea: :" + preanalisis.linea
+        //             + " se esperaba alguna de las siguientes palabras/simbolos: " +
+        //             "var, !, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, ;");
+        // }
         return null;
     }
 
@@ -339,12 +354,13 @@ public class AnalizadorSintactico {
             return expression;
         } else if (preanalisis.tipoToken == TipoToken.SEMICOLON) {
             if (!coincidir(TipoToken.SEMICOLON)) return null;
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea
-                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
-                    "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, ;");
         }
+        // } else {
+        //     hayErrores = true;
+        //     System.out.println("Error en la linea: :" + preanalisis.linea
+        //             + " se esperaba alguna de las siguientes palabras/simbolos: " +
+        //             "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, ;");
+        // }
 
         return null;
     }
@@ -426,7 +442,11 @@ public class AnalizadorSintactico {
             Expression expression = EXPRESSION();
             if(!coincidir(TipoToken.SEMICOLON)) return null;
 
-            return new StmtPrint(expression);
+            StmtPrint primtStmt = new StmtPrint(expression);
+
+            if (!this.insideBlockDeclaration) this.threeList.add(primtStmt);
+
+            return primtStmt;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada imprimir");

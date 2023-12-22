@@ -11,7 +11,7 @@ public class ExprLogical extends Expression{
 
     @Override
     public String toString() {
-        return "Expresion: ExprLogical <---------------------------";
+        return "Expresion: ExprLogical";
     }
 }
 
