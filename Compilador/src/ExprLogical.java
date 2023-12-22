@@ -8,5 +8,10 @@ public class ExprLogical extends Expression{
         this.operator = operator;
         this.right = right;
     }
+
+    @Override
+    public String toString() {
+        return "Expresion: ExprLogical <---------------------------";
+    }
 }
 

@@ -96,12 +96,16 @@ public class AnalizadorLexico {
                         if (tt == null) {
                                 tokens.add(new Token(TipoToken.IDENTIFIER, lexema, lexema, numerolinea));
                         } else {
-                            if (lexema == "verdadero") {
-                                tokens.add(new Token(TipoToken.TRUE, lexema, true, numerolinea));
-                            } else if (lexema=="falso") {
-                                tokens.add(new Token(TipoToken.FALSE,lexema,false,numerolinea));
-                            } else if (lexema=="nulo") {
-                                tokens.add(new Token(TipoToken.NULL,lexema,null,numerolinea));
+                            // if (lexema == "true") {
+                            if (tt == TipoToken.TRUE) {
+                                tokens.add(new Token(TipoToken.TRUE, lexema, Boolean.valueOf(true), numerolinea));
+                            // } else if (lexema=="false") {
+                            } else if (tt == TipoToken.FALSE) {     
+                                tokens.add(new Token(TipoToken.FALSE, lexema, Boolean.valueOf(false),numerolinea));
+                            //} else if (lexema=="null") {
+                            } else if (tt == TipoToken.NULL) {
+                                System.out.println("ORAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+                                tokens.add(new Token(TipoToken.NULL, lexema,null,numerolinea));
                             } else {
                                 tokens.add(new Token(tt, lexema, numerolinea));
                             }

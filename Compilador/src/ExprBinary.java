@@ -10,4 +10,9 @@ public class ExprBinary extends Expression{
         this.right = right;
     }
 
+    @Override
+    public String toString() {
+        return "Expresion: ExprBinary <---------------------------";
+    }
+
 }

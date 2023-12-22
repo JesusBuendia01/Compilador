@@ -10,4 +10,9 @@ public class ExprCallFunction extends Expression{
         // this.paren = paren;
         this.arguments = arguments;
     }
+
+    @Override
+    public String toString() {
+        return "Expresion: ExprCallFunction <---------------------------";
+    }
 }

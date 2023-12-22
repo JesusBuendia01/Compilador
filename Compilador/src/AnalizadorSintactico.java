@@ -4,11 +4,8 @@ import java.util.*;
 public class AnalizadorSintactico {
 
     private List<Statement> threeList;
-    private Statement three = null;
-    private Queue<Token> tokensToGroup;
-    private boolean newAssignment = false;
-    private boolean newFunction = false;
-    private int blockRecursiveId = 0;
+    private boolean insideBlockDeclaration = false;
+    private List<Statement> statementsForBlock;
 
     private int i = 0;
     private boolean hayErrores = false;
@@ -18,13 +15,16 @@ public class AnalizadorSintactico {
     public AnalizadorSintactico(List<Token> tokens) {
         this.tokens = tokens;
         this.threeList = new ArrayList<Statement>();
-        this.tokensToGroup = new LinkedList<>();
+        this.statementsForBlock = new ArrayList<>();
     }
 
     public void analizadorSintactico() {
         this.i = 0;
         preanalisis = tokens.get(this.i);
+
         PROGRAM();
+        // lista de statements
+        
         if (!hayErrores && !(preanalisis.tipoToken == TipoToken.EOF)) {
             System.out.println(
                     "Error en la linea :" + preanalisis.linea + ". No se esperaba el token " + preanalisis.tipoToken);
@@ -71,18 +71,24 @@ public class AnalizadorSintactico {
 
     }
 
-    private void DECLARATION() {
+    private Statement DECLARATION() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.CLASS) {
-            CLASS_DECL();
-            DECLARATION();
-        } else if (preanalisis.tipoToken == TipoToken.FUN) {
-            FUN_DECL();
+        if (hayErrores) return null;
+        if (preanalisis.tipoToken == TipoToken.FUN) {
+            Statement functionDeclaration = FUN_DECL();
+            if (this.insideBlockDeclaration) {
+                this.statementsForBlock.add(functionDeclaration);
+            } else {
+                this.statementsForBlock.clear();
+            }
             DECLARATION();
         } else if (preanalisis.tipoToken == TipoToken.VAR) {
-            VAR_DECL();
+            Statement varDeclaration = VAR_DECL();
+            if (this.insideBlockDeclaration) {
+                this.statementsForBlock.add(varDeclaration);
+            } else {
+                this.statementsForBlock.clear();
+            }
             DECLARATION();
         } else if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
@@ -101,100 +107,73 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.RETURN
                 || preanalisis.tipoToken == TipoToken.WHILE
                 || preanalisis.tipoToken == TipoToken.LEFT_BRACE) {
-            STATEMENT();
+            Statement statement = STATEMENT();
+
+            if (this.insideBlockDeclaration) {
+                this.statementsForBlock.add(statement);
+            } else {
+                this.statementsForBlock.clear();
+            }
+
             DECLARATION();
         }
+
+        return null;
     }
 
-    private void CLASS_DECL() {
+    private StmtFunction FUN_DECL() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.CLASS) {
-            coincidir(TipoToken.CLASS);
-            coincidir(TipoToken.IDENTIFIER);
-            CLASS_INHER();
-            coincidir(TipoToken.LEFT_BRACE);
-            FUNCTIONS();
-            coincidir(TipoToken.RIGHT_BRACE);
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada clase");
-        }
-
-    }
-
-    void CLASS_INHER() {
-        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.LESS) {
-            coincidir(TipoToken.LESS);
-            coincidir(TipoToken.IDENTIFIER);
-        }
-    }
-
-    private void FUN_DECL() {
-        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.FUN) {
-            coincidir(TipoToken.FUN);
-            FUNCTION();
+            if (!coincidir(TipoToken.FUN)) return null;
+            return FUNCTION();
         } else {
             hayErrores = true;
-            System.out
-                    .println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada funcion");
+            System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada funcion");
         }
+
+        return null;
     }
 
-    private void VAR_DECL() {
+    private StmtVar VAR_DECL() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.VAR) {
-            if (!coincidir(TipoToken.VAR)) {
-                this.tokensToGroup.clear();
-                return;
-            }
+            if (!coincidir(TipoToken.VAR)) return null;
 
-            Token temp = preanalisis;
-            if (!coincidir(TipoToken.IDENTIFIER)) {
-                temp = null;
-                this.tokensToGroup.clear();
-                return;
-            };
+            Token identificador = preanalisis;
+            if (!coincidir(TipoToken.IDENTIFIER)) return null;
 
-            this.tokensToGroup.add(temp);
+            Expression varInit = VAR_INIT();
 
-            VAR_INIT();
+            if (!coincidir(TipoToken.SEMICOLON)) return null;
 
-            if (!coincidir(TipoToken.SEMICOLON)) {
-                this.tokensToGroup.clear();
-                return;
-            }
+            StmtVar newVariable = new StmtVar(identificador, varInit);
 
-            addNewVariableStatementToThree();
+            if (!this.insideBlockDeclaration) this.threeList.add(newVariable);
+
+            return newVariable;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada var");
         }
+
+        return null;
     }
 
-    private Token VAR_INIT() {
+    private Expression VAR_INIT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.EQUAL) {
-            if (!coincidir(TipoToken.EQUAL)) this.tokensToGroup.clear();
-            EXPRESSION();
+            if (!coincidir(TipoToken.EQUAL)) return null;
+            return EXPRESSION();
         }
         return null;
     }
 
-    private void STATEMENT() {
+    private Statement STATEMENT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -206,19 +185,19 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPR_STMT();
+            return EXPR_STMT();
         } else if (preanalisis.tipoToken == TipoToken.FOR) {
-            FOR_STMT();
+            return FOR_STMT();
         } else if (preanalisis.tipoToken == TipoToken.IF) {
-            IF_STMT();
+            return IF_STMT();
         } else if (preanalisis.tipoToken == TipoToken.PRINT) {
-            PRINT_STMT();
+            return PRINT_STMT();
         } else if (preanalisis.tipoToken == TipoToken.RETURN) {
-            RETURN_STMT();
+            return RETURN_STMT();
         } else if (preanalisis.tipoToken == TipoToken.WHILE) {
-            WHILE_STMT();
+            return WHILE_STMT();
         } else if (preanalisis.tipoToken == TipoToken.LEFT_BRACE) {
-            BLOC();
+            return BLOC();
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
@@ -226,12 +205,13 @@ public class AnalizadorSintactico {
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, para, si, imprimir, retornar," +
                     "mientras, { ");
         }
+
+        return null;
     }
 
-    private void EXPR_STMT() {
+    private StmtExpression EXPR_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -243,46 +223,79 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPRESSION();
-            if (!coincidir(TipoToken.SEMICOLON)) return;
-            if (this.newAssignment) {
-                System.out.println("ALAVRGAAAAAAAAAAAAAAA ACABO EL PDO DE LA EXPRESION SI ES UNA ASIGNACION!    247");
-                System.out.println(this.tokensToGroup);
-                this.addNewAssignmentToThree();
-                this.newAssignment = false;
-            }
+            Expression expression = EXPRESSION();
+            StmtExpression statementExpression = new StmtExpression(expression);
+
+            if (!coincidir(TipoToken.SEMICOLON)) return null;
+
+            if (!this.insideBlockDeclaration) this.threeList.add(statementExpression);
+
+            return statementExpression;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void FOR_STMT() {
+    private StmtLoop FOR_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.FOR) {
-            coincidir(TipoToken.FOR);
-            coincidir(TipoToken.LEFT_PAREN);
-            FOR_STMT_1();
-            FOR_STMT_2();
-            FOR_STMT_3();
-            coincidir(TipoToken.RIGHT_PAREN);
-            STATEMENT();
+            if (!coincidir(TipoToken.FOR)) return null;
+            if (!coincidir(TipoToken.LEFT_PAREN)) return null;
+
+            Statement stmt1 = FOR_STMT_1();
+            Expression stmt2 = FOR_STMT_2();
+            Expression stmt3 = FOR_STMT_3();
+
+            if (!coincidir(TipoToken.RIGHT_PAREN)) return null;
+
+            if (this.hayErrores) return null;
+
+            Statement body;
+
+            if (!this.insideBlockDeclaration) {
+                this.insideBlockDeclaration = true;
+                body = STATEMENT();
+                this.insideBlockDeclaration = false;
+            } else {
+                body = STATEMENT();
+            }
+
+            List<Statement> forBodyList = new ArrayList<>();
+            if (stmt1 == null && stmt2 == null && stmt3 == null) {
+                forBodyList.add(body);
+                stmt2 = null;
+            } else {
+                forBodyList.add(body);
+                forBodyList.add(new StmtExpression(stmt3));
+            }
+
+            StmtBlock forBody = new StmtBlock(forBodyList);
+
+            StmtLoop forLoop = new StmtLoop(stmt2, forBody);
+
+            if (!this.insideBlockDeclaration) this.threeList.add(forLoop);
+
+            return forLoop;
+            
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada para");
         }
+
+        return null;
     }
 
-    private void FOR_STMT_1() {
+    private Statement FOR_STMT_1() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.VAR) {
-            VAR_DECL();
+            return VAR_DECL();
         } else if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -294,21 +307,22 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPR_STMT();
+            StmtExpression statementExpression = EXPR_STMT();
+            return statementExpression;
         } else if (preanalisis.tipoToken == TipoToken.SEMICOLON) {
-            coincidir(TipoToken.SEMICOLON);
+            if (!coincidir(TipoToken.SEMICOLON)) return null;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "var, !, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, ;");
         }
+        return null;
     }
 
-    private void FOR_STMT_2() {
+    private Expression FOR_STMT_2() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -320,22 +334,24 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPRESSION();
-            coincidir(TipoToken.SEMICOLON);
+            Expression expression = EXPRESSION();
+            if(!coincidir(TipoToken.SEMICOLON)) return null;
+            return expression;
         } else if (preanalisis.tipoToken == TipoToken.SEMICOLON) {
-            coincidir(TipoToken.SEMICOLON);
+            if (!coincidir(TipoToken.SEMICOLON)) return null;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super, ;");
         }
+
+        return null;
     }
 
-    private void FOR_STMT_3() {
+    private Expression FOR_STMT_3() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -347,71 +363,98 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPRESSION();
+            return EXPRESSION();
         }
+
+        return null;
     }
 
-    private void IF_STMT() {
+    private StmtIf IF_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.IF) {
-            coincidir(TipoToken.IF);
-            coincidir(TipoToken.LEFT_PAREN);
-            EXPRESSION();
-            coincidir(TipoToken.RIGHT_PAREN);
-            STATEMENT();
-            ELSE_STMT();
+            if (!coincidir(TipoToken.IF)) return null;
+            if (!coincidir(TipoToken.LEFT_PAREN)) return null;
+
+            Expression expression = EXPRESSION();
+
+            if (!coincidir(TipoToken.RIGHT_PAREN)) return null;
+
+            Statement ifStatement;
+
+            Statement elseStatement;
+
+            if (!this.insideBlockDeclaration) {
+                this.insideBlockDeclaration = true;
+                ifStatement = STATEMENT();
+                elseStatement = ELSE_STMT();
+                this.insideBlockDeclaration = false;
+            } else {
+                ifStatement = STATEMENT();
+                elseStatement = ELSE_STMT();
+            }
+
+            StmtIf ifStmt = new StmtIf(expression, ifStatement, elseStatement);
+
+            if (!this.insideBlockDeclaration) this.threeList.add(ifStmt);
+
+            return ifStmt;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada si");
         }
+
+        return null;
     }
 
-    private void ELSE_STMT() {
+    private Statement ELSE_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.ELSE) {
-            coincidir(TipoToken.ELSE);
-            STATEMENT();
+            if (!coincidir(TipoToken.ELSE)) return null;
+            return STATEMENT();
         }
+
+        return null;
     }
 
-    private void PRINT_STMT() {
+    private StmtPrint PRINT_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.PRINT) {
-            coincidir(TipoToken.PRINT);
-            EXPRESSION();
-            coincidir(TipoToken.SEMICOLON);
+            if (!coincidir(TipoToken.PRINT)) return null;
+            Expression expression = EXPRESSION();
+            if(!coincidir(TipoToken.SEMICOLON)) return null;
+
+            return new StmtPrint(expression);
         } else {
             hayErrores = true;
-            System.out
-                    .println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada imprimir");
+            System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada imprimir");
         }
+
+        return null;
     }
 
-    private void RETURN_STMT() {
+    private StmtReturn RETURN_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.RETURN) {
-            coincidir(TipoToken.RETURN);
-            RETURN_EXP_OPC();
-            coincidir(TipoToken.SEMICOLON);
+            if (!coincidir(TipoToken.RETURN)) return null;
+            Expression expression = RETURN_EXP_OPC();
+            if (!coincidir(TipoToken.SEMICOLON)) return null;
+            return new StmtReturn(expression);
         } else {
             hayErrores = true;
             System.out
                     .println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada retornar");
         }
+
+        return null;
     }
 
-    private void RETURN_EXP_OPC() {
+    private Expression RETURN_EXP_OPC() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -423,45 +466,63 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPRESSION();
+            return EXPRESSION();
         }
+
+        return null;
     }
 
-    private void WHILE_STMT() {
+    private StmtLoop WHILE_STMT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.WHILE) {
-            coincidir(TipoToken.WHILE);
-            coincidir(TipoToken.LEFT_PAREN);
-            EXPRESSION();
-            coincidir(TipoToken.RIGHT_PAREN);
-            STATEMENT();
+            if (!coincidir(TipoToken.WHILE)) return null;
+            if (!coincidir(TipoToken.LEFT_PAREN)) return null;
+            Expression expression = EXPRESSION();
+            if (!coincidir(TipoToken.RIGHT_PAREN)) return null;
+            Statement whileBody;
+
+            if (!this.insideBlockDeclaration) {
+                this.insideBlockDeclaration = true;
+                whileBody = STATEMENT();
+                this.insideBlockDeclaration = false;
+            } else {
+                whileBody = STATEMENT();
+            }
+
+            StmtLoop whileLoop = new StmtLoop(expression, whileBody);
+
+            if (!this.insideBlockDeclaration) this.threeList.add(whileLoop);
+
+            return whileLoop;
         } else {
             hayErrores = true;
             System.out
                     .println("Error en la linea: :" + preanalisis.linea + " se esperaba la palabra reservada mientras");
         }
+
+        return null;
     }
 
-    private void BLOC() {
+    private StmtBlock BLOC() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.LEFT_BRACE) {
-            if (!coincidir(TipoToken.LEFT_BRACE)) this.tokensToGroup.clear();
-            BLOCK_DECL();
-            if(!coincidir(TipoToken.RIGHT_BRACE)) this.tokensToGroup.clear();   
+            if (!coincidir(TipoToken.LEFT_BRACE)) return null;
+            List<Statement> blockDeclaration = BLOCK_DECL();
+            if(!coincidir(TipoToken.RIGHT_BRACE)) return null;
+            return new StmtBlock(blockDeclaration);   
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba: { ");
         }
+
+        return null;
     }
 
-    private void BLOCK_DECL() {
+    private List<Statement> BLOCK_DECL() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.CLASS
                 || preanalisis.tipoToken == TipoToken.FUN
                 || preanalisis.tipoToken == TipoToken.VAR
@@ -482,15 +543,27 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.RETURN
                 || preanalisis.tipoToken == TipoToken.WHILE
                 || preanalisis.tipoToken == TipoToken.LEFT_BRACE) {
+            List<Statement> statements = new ArrayList<>();
             DECLARATION();
-            BLOCK_DECL();
+            // Statement declaration = DECLARATION();
+            statements.addAll(this.statementsForBlock);
+            this.statementsForBlock.clear();
+            List<Statement> moreStatements = BLOCK_DECL();
+
+            if (moreStatements != null) {
+                statements.addAll(moreStatements);
+            }
+
+            return statements;
         }
+
+        return null;
     }
 
-    private void EXPRESSION() {
+    private Expression EXPRESSION() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -502,19 +575,21 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            ASSIGNMENT();
+            return ASSIGNMENT();
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void ASSIGNMENT() {
+    private Expression ASSIGNMENT() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -526,30 +601,34 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            LOGIC_OR();
-            ASSIGNMENT_OPC();
+            Expression logicOr = LOGIC_OR();
+            Expression assignmentOpc = ASSIGNMENT_OPC();
+            if(this.hayErrores) return null;
+            return new ExprAssign(logicOr.getToken(), assignmentOpc);
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void ASSIGNMENT_OPC() {
+    private Expression ASSIGNMENT_OPC() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.EQUAL) {
-            if (coincidir(TipoToken.EQUAL)) this.newAssignment = true;
-            EXPRESSION();
+            if (!coincidir(TipoToken.EQUAL)) return null;
+            return EXPRESSION();
         }
+        return null;
     }
 
-    private void LOGIC_OR() {
+    private Expression LOGIC_OR() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -561,31 +640,39 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            LOGIC_AND();
-            LOGIC_OR_2();
+            Expression logicAnd = LOGIC_AND();
+            Expression logicOr2 = LOGIC_OR_2(logicAnd);
+
+            return logicOr2;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void LOGIC_OR_2() {
+    private Expression LOGIC_OR_2(Expression initialExpression) {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.OR) {
-            coincidir(TipoToken.OR);
-            LOGIC_AND();
-            LOGIC_OR_2();
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.OR)) return null;
+            Expression logicAnd = LOGIC_AND();
+            Expression logicOr2 = LOGIC_OR_2(logicAnd);
+
+            return new ExprLogical(initialExpression, temp, logicOr2);
         }
+
+        return initialExpression;
     }
 
-    private void LOGIC_AND() {
+    private Expression LOGIC_AND() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -597,31 +684,39 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            EQUALITY();
-            LOGIC_AND_2();
+            Expression equality = EQUALITY();
+            Expression logicAnd2 = LOGIC_AND_2(equality);
+
+            return logicAnd2;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void LOGIC_AND_2() {
+    private Expression LOGIC_AND_2(Expression initialExpression) {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.AND) {
-            coincidir(TipoToken.AND);
-            EQUALITY();
-            LOGIC_AND();
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.AND)) return null;
+            Expression equality = EQUALITY();
+            Expression logicAnd2 = LOGIC_AND_2(equality);
+
+            return new ExprLogical(initialExpression, temp, logicAnd2);
         }
+
+        return initialExpression;
     }
 
-    private void EQUALITY() {
+    private Expression EQUALITY() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -633,36 +728,47 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            COMPARISSON();
-            EQUALITY_2();
+            Expression comparisson = COMPARISSON();
+            Expression equality2 = EQUALITY_2(comparisson);
+
+            return equality2;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void EQUALITY_2() {
+    private Expression EQUALITY_2(Expression initialExpression) {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
+
+        Token temp = preanalisis;
+
         if (preanalisis.tipoToken == TipoToken.BANG_EQUAL) {
-            coincidir(TipoToken.BANG_EQUAL);
-            COMPARISSON();
-            EQUALITY_2();
+            if (!coincidir(TipoToken.BANG_EQUAL)) return null;
+            Expression comparisson = COMPARISSON();
+            Expression equality2 = EQUALITY_2(comparisson);
+
+            return new ExprLogical(initialExpression, temp, equality2);
         } else if (preanalisis.tipoToken == TipoToken.EQUAL_EQUAL) {
-            coincidir(TipoToken.EQUAL_EQUAL);
-            COMPARISSON();
-            EQUALITY_2();
+            if (!coincidir(TipoToken.EQUAL_EQUAL)) return null;
+            Expression comparisson = COMPARISSON();
+            Expression equality2 = EQUALITY_2(comparisson);
 
+            return new ExprLogical(initialExpression, temp, equality2);
         }
+
+        return initialExpression;
     }
 
-    private void COMPARISSON() {
+    private Expression COMPARISSON() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -674,38 +780,54 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            TERM();
-            COMPARISSON_2();
+            Expression term = TERM();
+            Expression comparisson2 = COMPARISSON_2(term);
+
+            return comparisson2;
         }
+
+        return null;
     }
 
-    private void COMPARISSON_2() {
+    private Expression COMPARISSON_2(Expression initialExpression) {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
+
+        Token temp = preanalisis;
+        
         if (preanalisis.tipoToken == TipoToken.GREATER) {
-            coincidir(TipoToken.GREATER);
-            TERM();
-            COMPARISSON_2();
+            if (!coincidir(TipoToken.GREATER)) return null;
+            Expression term = TERM();
+            Expression comparisson2 = COMPARISSON_2(term);
+
+            return new ExprLogical(initialExpression, temp, comparisson2);
         } else if (preanalisis.tipoToken == TipoToken.GREATER_EQUAL) {
-            coincidir(TipoToken.GREATER_EQUAL);
-            TERM();
-            COMPARISSON_2();
+            if (!coincidir(TipoToken.GREATER_EQUAL)) return null;
+            Expression term = TERM();
+            Expression comparisson2 = COMPARISSON_2(term);
+
+            return new ExprLogical(initialExpression, temp, comparisson2);
         } else if (preanalisis.tipoToken == TipoToken.LESS) {
-            coincidir(TipoToken.LESS);
-            TERM();
-            COMPARISSON_2();
+            if (!coincidir(TipoToken.LESS)) return null;
+            Expression term = TERM();
+            Expression comparisson2 = COMPARISSON_2(term);
+
+            return new ExprLogical(initialExpression, temp, comparisson2);
         } else if (preanalisis.tipoToken == TipoToken.LESS_EQUAL) {
-            coincidir(TipoToken.LESS_EQUAL);
-            TERM();
-            COMPARISSON_2();
+            if (!coincidir(TipoToken.LESS_EQUAL)) return null;
+            Expression term = TERM();
+            Expression comparisson2 = COMPARISSON_2(term);
+
+            return new ExprLogical(initialExpression, temp, comparisson2);
         }
+
+        return initialExpression;
     }
 
-    private void TERM() {
+    private Expression TERM() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -717,32 +839,44 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            FACTOR();
-            TERM_2();
+            Expression factor = FACTOR();
+            Expression term2 = TERM_2(factor);
+
+            return term2;
         }
+
+        return null;
     }
 
-    private void TERM_2() {
+    private Expression TERM_2(Expression initialExpression) {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.MINUS) {
             Token temp = preanalisis;
-            if (coincidir(TipoToken.MINUS)) this.tokensToGroup.add(temp);
-            FACTOR();
-            TERM_2();
+            if (!coincidir(TipoToken.MINUS)) return null;
+
+            Expression factor = FACTOR();
+            Expression term2 = TERM_2(factor);
+
+            return new ExprBinary(initialExpression, temp, term2);
         } else if (preanalisis.tipoToken == TipoToken.PLUS) {
             Token temp = preanalisis;
-            if (coincidir(TipoToken.PLUS)) this.tokensToGroup.add(temp);
-            FACTOR();
-            TERM_2();
+            if (!coincidir(TipoToken.PLUS)) return null;
+
+            Expression factor = FACTOR();
+            Expression term2 = TERM_2(factor);
+
+            return new ExprBinary(initialExpression, temp, term2);
         }
+
+        return initialExpression;
     }
 
-    private void FACTOR() {
+    private Expression FACTOR() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG
                 || preanalisis.tipoToken == TipoToken.MINUS
                 || preanalisis.tipoToken == TipoToken.TRUE
@@ -754,291 +888,329 @@ public class AnalizadorSintactico {
                 || preanalisis.tipoToken == TipoToken.IDENTIFIER
                 || preanalisis.tipoToken == TipoToken.LEFT_PAREN
                 || preanalisis.tipoToken == TipoToken.SUPER) {
-            UNARY();
-            FACTOR_2();
+            Expression unary = UNARY();
+            Expression factor = FACTOR_2(unary);
+
+            return factor;
         }
+
+        return null;
     }
 
-    private void FACTOR_2() {
+    private Expression FACTOR_2(Expression initialUnary) {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.SLASH) {
-            coincidir(TipoToken.SLASH);
-            UNARY();
-            FACTOR_2();
+            Token temp = preanalisis;
+
+            if (!coincidir(TipoToken.SLASH)) return null;
+            
+            Expression unary = UNARY();
+            Expression factor2 = FACTOR_2(unary);
+
+            return new ExprBinary(initialUnary, temp, factor2);
         } else if (preanalisis.tipoToken == TipoToken.STAR) {
             Token temp = preanalisis;
-            if (coincidir(TipoToken.STAR)) {
-                this.tokensToGroup.add(temp);
-            } else {
-                this.tokensToGroup.clear();
-            }
-            UNARY();
-            FACTOR_2();
+            if (!coincidir(TipoToken.STAR)) return null;
+            
+            Expression unary = UNARY();
+            Expression factor2 = FACTOR_2(unary);
 
+            return new ExprBinary(initialUnary, temp, factor2);
         }
+
+        return initialUnary;    
     }
 
-    private void UNARY() {
+    private Expression UNARY() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.BANG) {
-            coincidir(TipoToken.BANG);
-            UNARY();
+            Token temp = preanalisis;
+            if (!coincidir(TipoToken.BANG)) {
+                return null;
+            }
+
+            Expression expression = UNARY();
+
+            return new ExprUnary(temp, expression);
+           
         } else if (preanalisis.tipoToken == TipoToken.MINUS) {
             Token temp = preanalisis;
             if (!coincidir(TipoToken.MINUS)) {
-                this.tokensToGroup.clear();
-            } else {
-                this.tokensToGroup.add(temp);
+                return null;
             }
-            UNARY();
+
+            Expression expression = UNARY();
+
+            return new ExprUnary(temp, expression);
         } else if (isPrimary(preanalisis.tipoToken)) {
-            CALL();
+            return CALL();
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea
                     + " se esperaba alguna de las siguientes palabras/simbolos: " +
                     "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
         }
+
+        return null;
     }
 
-    private void CALL() {
+    private Expression CALL() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
+            return null;
         if (isPrimary(preanalisis.tipoToken)) {
-            PRIMARY();
-            CALL_2();
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea
-                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
-                    " verdadero, falso, nulo, este, numero, cadena, id, (, super");
-        }
-    }
+            Expression identifier = PRIMARY();
+            List<Expression> arguments = CALL_2();
 
-    private void CALL_2() {
-        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.LEFT_PAREN) {
-            System.out.println("LEYENDO FUNCIOOOOOOOOON O CLASEEEEEEEEEEEEEEEEEEEEEEEEE 826");
-            coincidir(TipoToken.LEFT_PAREN);
-            ARGUMENTS_OPC();
-            coincidir(TipoToken.RIGHT_PAREN);
-            CALL_2();
-        } else if (preanalisis.tipoToken == TipoToken.DOT) {
-            coincidir(TipoToken.DOT);
-            coincidir(TipoToken.IDENTIFIER);
-            CALL_2();
-        }
-    }
-
-    private void PRIMARY() {
-        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.TRUE) {
-            coincidir(TipoToken.TRUE);
-        } else if (preanalisis.tipoToken == TipoToken.FALSE) {
-            coincidir(TipoToken.FALSE);
-        } else if (preanalisis.tipoToken == TipoToken.NULL) {
-            coincidir(TipoToken.NULL);
-        } else if (preanalisis.tipoToken == TipoToken.THIS) {
-            coincidir(TipoToken.THIS);
-        } else if (preanalisis.tipoToken == TipoToken.NUMBER) {
-            Token temp = preanalisis;
-            if (!coincidir(TipoToken.NUMBER)) {
-                this.tokensToGroup.clear();
-                return;
-            }
-            this.tokensToGroup.add(temp);
-        } else if (preanalisis.tipoToken == TipoToken.STRING) {
-            Token temp = preanalisis;
-            if (!coincidir(TipoToken.STRING)) {
-                this.tokensToGroup.clear();
-                return;
-            }
-            this.tokensToGroup.add(temp);
-        } else if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            Token temp = preanalisis;
-            if (!coincidir(TipoToken.IDENTIFIER)) {
-                this.tokensToGroup.clear();
-                return;
-            }
-            this.tokensToGroup.add(temp);
-        } else if (preanalisis.tipoToken == TipoToken.LEFT_PAREN) {
-            Token temp = preanalisis;
-            if (coincidir(TipoToken.LEFT_PAREN)) {
-                this.tokensToGroup.add(temp);
+            if (arguments != null) {
+                return new ExprCallFunction(identifier, arguments);
             } else {
-                this.tokensToGroup.clear();
+                return new ExprVariable(identifier.getToken());
             }
-            EXPRESSION();
-            temp = preanalisis;
-            if (coincidir(TipoToken.RIGHT_PAREN)) {
-                this.tokensToGroup.add(temp);
-            } else {
-                this.tokensToGroup.clear();
-            }
-        } else if (preanalisis.tipoToken == TipoToken.SUPER) {
-            coincidir(TipoToken.SUPER);
-            coincidir(TipoToken.DOT);
-            coincidir(TipoToken.IDENTIFIER);
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea
-                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
-                    " verdadero, falso, nulo, este, numero, cadena, id, (, super");
-        }
-    }
-
-    private void FUNCTION() {
-        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            Token temp = preanalisis;
-            this.blockRecursiveId += 1;
-
-            if (coincidir(TipoToken.IDENTIFIER)) {
-                this.tokensToGroup.add(temp);
-            } else {
-                this.tokensToGroup.clear();
-            }
-
-            temp = preanalisis;
-
-            if (coincidir(TipoToken.LEFT_PAREN)) {
-                this.tokensToGroup.add(temp);
-            } else {
-                this.tokensToGroup.clear();
-            }
-
-            PARAMETERS_OPC();
-            temp = preanalisis;
-
-            if (coincidir(TipoToken.RIGHT_PAREN)) {
-                this.tokensToGroup.add(temp);
-            } else {
-                this.tokensToGroup.clear();
-            }
-
-            BLOC();
-
-            if (this.blockRecursiveId == 1) {
-                this.addNewFunctionToThree();
-            }
-
-            this.blockRecursiveId -= 1;
             
+            
+        } else {
+            hayErrores = true;
+            System.out.println("Error en la linea: :" + preanalisis.linea
+                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
+                    " verdadero, falso, nulo, este, numero, cadena, id, (, super");
+        }
+
+        return null;
+    }
+
+    private List<Expression> CALL_2() {
+        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
+        if (hayErrores)
+            return null;
+        if (preanalisis.tipoToken == TipoToken.LEFT_PAREN) {
+            if (!coincidir(TipoToken.LEFT_PAREN)) return null;
+            List<Expression> arguments = ARGUMENTS_OPC();
+
+            System.out.println("ARGUMEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEENTS:");
+            System.out.println(arguments);
+
+            if (!coincidir(TipoToken.RIGHT_PAREN)) return null;
+            List<Expression> moreArguments = CALL_2();
+
+            if (moreArguments != null) {
+                arguments.addAll(moreArguments);
+            }
+
+            return arguments;
+        }
+        // } else if (preanalisis.tipoToken == TipoToken.DOT) {
+        //     coincidir(TipoToken.DOT);
+        //     coincidir(TipoToken.IDENTIFIER);
+        //     CALL_2();
+        // }
+
+        return null;
+    }
+
+    private Expression PRIMARY() {
+        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
+        if (hayErrores) return null;
+        Token temp = preanalisis;
+        if (preanalisis.tipoToken == TipoToken.TRUE) {
+            if (coincidir(TipoToken.TRUE)){
+                return new ExprLiteral(temp.literal);
+            }
+        } else if (preanalisis.tipoToken == TipoToken.FALSE) {
+            if (coincidir(TipoToken.FALSE)) {
+                return new ExprLiteral(temp.literal);
+            }
+        } else if (preanalisis.tipoToken == TipoToken.NULL) {
+            if(coincidir(TipoToken.NULL)) {
+                return new ExprLiteral(temp.literal);
+            }
+        // } else if (preanalisis.tipoToken == TipoToken.THIS) {
+        //     if (coincidir(TipoToken.THIS)) {
+        //         return new ExprThis();
+        //     }
+        } else if (preanalisis.tipoToken == TipoToken.NUMBER) {
+            if (coincidir(TipoToken.NUMBER)) {
+                return new ExprLiteral(temp.literal);
+            }
+        } else if (preanalisis.tipoToken == TipoToken.STRING) {
+            if (coincidir(TipoToken.STRING)) {
+                return new ExprLiteral(temp.literal);
+            }
+        } else if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
+            if (coincidir(TipoToken.IDENTIFIER)) {
+                return new ExprVariable(temp);
+            }
+        } else if (preanalisis.tipoToken == TipoToken.LEFT_PAREN) {
+            if (!coincidir(TipoToken.LEFT_PAREN)) {
+                return null;
+            }
+
+            Expression expression = EXPRESSION();
+
+            if (!coincidir(TipoToken.RIGHT_PAREN)) {
+                return null;
+            }
+
+            return expression;
+        // } else if (preanalisis.tipoToken == TipoToken.SUPER) {
+        //     coincidir(TipoToken.SUPER);
+        //     coincidir(TipoToken.DOT);
+        //     coincidir(TipoToken.IDENTIFIER);
+        } else {
+            hayErrores = true;
+            System.out.println("Error en la linea: :" + preanalisis.linea
+                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
+                    " verdadero, falso, nulo, este, numero, cadena, id, (, super");
+        }
+        return null;
+    }
+
+    private StmtFunction FUNCTION() {
+        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
+        if (hayErrores) return null;
+        if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
+            Token identificador = preanalisis;
+            if (!coincidir(TipoToken.IDENTIFIER)) return null;
+
+            if (!coincidir(TipoToken.LEFT_PAREN)) return null;
+
+            List<Token> parameters = PARAMETERS_OPC();
+
+            if (!coincidir(TipoToken.RIGHT_PAREN)) return null;
+
+            StmtBlock block;
+            if (!this.insideBlockDeclaration) {
+                this.insideBlockDeclaration = true;
+                block = BLOC();
+                this.insideBlockDeclaration = false;
+            } else {
+                block = BLOC();
+            }
+
+            StmtFunction function = new StmtFunction(identificador, parameters, block);
+
+            if (!this.insideBlockDeclaration) this.threeList.add(function);
+
+            return function;
         } else {
             hayErrores = true;
             System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba : id");
         }
+
+        return null;
     }
 
-    private void FUNCTIONS() {
+    private List<Statement> FUNCTIONS() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            FUNCTION();
-            FUNCTIONS();
+            List<Statement> functions = new ArrayList<>();
+            StmtFunction function = FUNCTION();
+            functions.add(function);
+            List<Statement> moreFunctions = FUNCTIONS();
+
+            if (moreFunctions != null) {
+                functions.addAll(moreFunctions);
+            }
+
+            return functions;
         }
+
+        return null;
     }
 
-    private void PARAMETERS_OPC() {
+    private List<Token> PARAMETERS_OPC() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            PARAMETERS();
-        }
+        if (hayErrores) return null;
+        return PARAMETERS();
+        // if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
+        //     PARAMETERS();
+        // }
     }
 
-    private void PARAMETERS() {
+    private List<Token> PARAMETERS() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
-            coincidir(TipoToken.IDENTIFIER);
-            PARAMETERS_2();
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba: id");
+        if (hayErrores) return null;
+        Token temp = preanalisis;
+        if (!coincidir(TipoToken.IDENTIFIER)) return null;
+        List<Token> parametersList = new ArrayList<>();
+        parametersList.add(temp);
+        List<Token> moreParameters = PARAMETERS_2();
+
+        if (moreParameters != null) {
+            parametersList.addAll(moreParameters);
         }
+
+        return parametersList;
+
+        // if (preanalisis.tipoToken == TipoToken.IDENTIFIER) {
+        //     coincidir(TipoToken.IDENTIFIER);
+        //     PARAMETERS_2();
+        // } else {
+        //     hayErrores = true;
+        //     System.out.println("Error en la linea: :" + preanalisis.linea + " se esperaba: id");
+        // }
     }
 
-    private void PARAMETERS_2() {
+    private List<Token> PARAMETERS_2() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+        if (hayErrores) return null;
         if (preanalisis.tipoToken == TipoToken.COMMA) {
-            coincidir(TipoToken.COMMA);
-            coincidir(TipoToken.IDENTIFIER);
-            PARAMETERS_2();
+            if (!coincidir(TipoToken.COMMA)) return null;
+            Token parameter = preanalisis;
+            if (!coincidir(TipoToken.IDENTIFIER)) return null;
+            List<Token> parametersList = new ArrayList<>();
+            parametersList.add(parameter);
+            List<Token> moreParameters = PARAMETERS_2();
+
+            if (moreParameters != null) {
+                parametersList.addAll(moreParameters);
+            }
+
+            return parametersList;
         }
+
+        return null;
     }
 
-    private void ARGUMENTS_OPC() {
+    private List<Expression> ARGUMENTS_OPC() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.BANG
-                || preanalisis.tipoToken == TipoToken.MINUS
-                || preanalisis.tipoToken == TipoToken.TRUE
-                || preanalisis.tipoToken == TipoToken.FALSE
-                || preanalisis.tipoToken == TipoToken.NULL
-                || preanalisis.tipoToken == TipoToken.THIS
-                || preanalisis.tipoToken == TipoToken.NUMBER
-                || preanalisis.tipoToken == TipoToken.STRING
-                || preanalisis.tipoToken == TipoToken.IDENTIFIER
-                || preanalisis.tipoToken == TipoToken.LEFT_PAREN
-                || preanalisis.tipoToken == TipoToken.SUPER) {
-            ARGUMENTS();
+            return null;
+        
+        List<Expression> arguments = new ArrayList<>();
+        arguments.add(EXPRESSION());
+        List<Expression> moreArguments = ARGUMENTS();
+
+        if (moreArguments != null) {
+            arguments.addAll(moreArguments);
         }
+
+        return arguments;
     }
 
-    private void ARGUMENTS() {
+    private List<Expression> ARGUMENTS() {
         System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
         if (hayErrores)
-            return;
-        if (preanalisis.tipoToken == TipoToken.BANG
-                || preanalisis.tipoToken == TipoToken.MINUS
-                || preanalisis.tipoToken == TipoToken.TRUE
-                || preanalisis.tipoToken == TipoToken.FALSE
-                || preanalisis.tipoToken == TipoToken.NULL
-                || preanalisis.tipoToken == TipoToken.THIS
-                || preanalisis.tipoToken == TipoToken.NUMBER
-                || preanalisis.tipoToken == TipoToken.STRING
-                || preanalisis.tipoToken == TipoToken.IDENTIFIER
-                || preanalisis.tipoToken == TipoToken.LEFT_PAREN
-                || preanalisis.tipoToken == TipoToken.SUPER) {
-            EXPRESSION();
-            ARGUMENTS_2();
-        } else {
-            hayErrores = true;
-            System.out.println("Error en la linea: :" + preanalisis.linea
-                    + " se esperaba alguna de las siguientes palabras/simbolos: " +
-                    "!, -, verdadero, falso, nulo, este, numero, cadena, id, (, super");
-        }
-    }
-
-    private void ARGUMENTS_2() {
-        System.out.printf("Class %s.%s\n", getClass().getName(), new Exception("is not thrown").getStackTrace()[0].getMethodName());
-        if (hayErrores)
-            return;
+            return null;
         if (preanalisis.tipoToken == TipoToken.COMMA) {
-            Token temp = preanalisis;
-            if (coincidir(TipoToken.COMMA)) this.tokensToGroup.add(preanalisis);
-            else this.tokensToGroup.clear();
-            EXPRESSION();
-            ARGUMENTS_2();
+            if (!coincidir(TipoToken.COMMA)) return null;
+            List<Expression> arguments = new ArrayList<>();
+            arguments.add(EXPRESSION());
+            List<Expression> moreArguments = ARGUMENTS();
+            
+            if (moreArguments != null) {
+                arguments.addAll(moreArguments);
+            }
+
+            return arguments;
         }
+
+        return null;
     }
 
     private boolean coincidir(TipoToken t) {
@@ -1066,40 +1238,5 @@ public class AnalizadorSintactico {
                 || token == TipoToken.IDENTIFIER
                 || token == TipoToken.LEFT_PAREN
                 || token == TipoToken.SUPER;
-    }
-
-    private void addNewVariableStatementToThree() {
-        Token variableName = this.tokensToGroup.remove();
-        Expression initExpression = null;
-        if (this.tokensToGroup.peek() != null) {
-            Token unary = null;
-            if (this.tokensToGroup.peek().tipoToken == TipoToken.MINUS) {
-                unary = this.tokensToGroup.remove();
-            }
-
-            initExpression = new ExprLiteral(this.tokensToGroup.remove().literal);
-
-            if (unary != null) {
-                initExpression = new ExprUnary(unary, initExpression);
-                initExpression = new ExprAssign(unary, initExpression);
-            } else {
-            }
-
-            initExpression = new ExprGrouping(initExpression);
-        }
-
-        StmtVar statementVar = new StmtVar(variableName, initExpression);
-        this.threeList.add(statementVar);
-        this.tokensToGroup.clear();
-    }
-
-    private void addNewAssignmentToThree() {
-        Token variableName = this.tokensToGroup.remove();
-
-    }
-
-    private void addNewFunctionToThree() {
-        System.out.println(this.tokensToGroup);
-        this.tokensToGroup.clear();
     }
 }

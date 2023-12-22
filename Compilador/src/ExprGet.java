@@ -6,4 +6,9 @@ public class ExprGet extends Expression{
         this.object = object;
         this.name = name;
     }
+
+    @Override
+    public String toString() {
+        return "Expresion: ExprGet <---------------------------";
+    }
 }

@@ -6,4 +6,9 @@ public class ExprSuper extends Expression {
         // this.keyword = keyword;
         this.method = method;
     }
+
+    @Override
+    public String toString() {
+        return "Expresion: ExprSuper <---------------------------";
+    }
 }
